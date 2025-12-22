@@ -1,3 +1,7 @@
+/*
+Please run : npm install recharts lucide-react clsx
+*/
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
