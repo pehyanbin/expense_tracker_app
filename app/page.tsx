@@ -510,7 +510,7 @@ export default function ExpenseTracker() {
                               backgroundColor: '#1f2937',
                               color: '#fff'
                           }}
-                          formatter={(value: number) => formatCurrency(value)}
+                          formatter={(value: any) => formatCurrency(value)}
                         />
                         <Legend />
                         <Bar dataKey="income" fill="#10b981" name="Income" radius={[4, 4, 0, 0]} />
@@ -800,7 +800,7 @@ export default function ExpenseTracker() {
                             backgroundColor: '#fff',
                             color: '#000'
                         }}
-                        formatter={(value: number) => formatCurrency(value)}
+                        formatter={(value: any) => formatCurrency(value)}
                       />
                       <Legend />
                       <Bar dataKey="income" fill="#10b981" name="Income" radius={[4, 4, 0, 0]} />
