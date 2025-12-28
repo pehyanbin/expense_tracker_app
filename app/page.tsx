@@ -312,12 +312,12 @@ export default function ExpenseTracker() {
   if (darkMode) {
     return (
       <div className="dark">
-        <div className="min-h-screen bg-gray-950 p-4 md:p-8 font-sans text-gray-100 transition-colors duration-300">
+        <div className="min-h-screen bg-gray-950 p-3 sm:p-4 md:p-8 font-sans text-gray-100 transition-colors duration-300">
           <div className="max-w-7xl mx-auto space-y-6">
             
             {/* Header */}
-            <header className="flex flex-col md:flex-row justify-between items-center gap-4">
-              <h1 className="text-3xl font-bold text-indigo-400 flex items-center gap-2">
+            <header className="flex flex-col lg:flex-row justify-between items-center gap-4">
+              <h1 className="text-2xl sm:text-3xl font-bold text-indigo-400 flex items-center gap-2">
                 <Wallet className="w-8 h-8" /> Expense Recorder
               </h1>
               
@@ -348,7 +348,7 @@ export default function ExpenseTracker() {
                 )}
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-3 bg-gray-900 p-2 rounded-xl shadow-sm border border-gray-800">
+              <div className="flex flex-wrap justify-center sm:justify-end items-center gap-3 bg-gray-900 p-2 rounded-xl shadow-sm border border-gray-800 w-full sm:w-auto">
                 {/* Theme Toggle */}
                 <button 
                   onClick={toggleTheme}
@@ -395,7 +395,7 @@ export default function ExpenseTracker() {
             </header>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
               <StatCard title="Balance" amount={stats.balance} icon={<Wallet className="text-white w-6 h-6" />} color="bg-indigo-500" />
               <StatCard title="Income" amount={stats.income} icon={<TrendingUp className="text-white w-6 h-6" />} color="bg-emerald-500" />
               <StatCard title="Expense" amount={stats.expense} icon={<TrendingDown className="text-white w-6 h-6" />} color="bg-rose-500" />
@@ -405,7 +405,7 @@ export default function ExpenseTracker() {
               
               {/* Left: Input */}
               <div className="lg:col-span-1 space-y-6">
-                <div className="bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-800 transition-colors">
+                <div className="bg-gray-900 p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-800 transition-colors">
                   <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-100">
                     {editingId ? <Edit2 className="w-5 h-5 text-orange-500"/> : <PlusCircle className="w-5 h-5 text-indigo-400"/>}
                     {editingId ? "Edit" : "New"} Transaction
@@ -483,7 +483,7 @@ export default function ExpenseTracker() {
                 </div>
 
                 {/* Transaction List */}
-                <div className="bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-800 flex flex-col h-[400px] transition-colors">
+                <div className="bg-gray-900 p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-800 flex flex-col h-[350px] sm:h-[400px] transition-colors">
                   <div className="flex justify-between items-center mb-2">
                     <h2 className="text-xl font-semibold flex items-center gap-2 text-gray-100">
                       History
@@ -536,7 +536,7 @@ export default function ExpenseTracker() {
 
               {/* Right: Visualization */}
               <div className="lg:col-span-2">
-                <div className="bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-800 h-full min-h-[500px] transition-colors">
+                <div className="bg-gray-900 p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-800 h-full min-h-[400px] sm:min-h-[500px] transition-colors">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-semibold text-gray-100">{viewMode === 'daily' ? 'Monthly Calendar' : 'Yearly Overview'}</h2>
                   </div>
@@ -550,7 +550,7 @@ export default function ExpenseTracker() {
                         ))}
                       </div>
                       
-                      <div className="grid grid-cols-7 grid-rows-5 gap-2 h-[500px]">
+                      <div className="grid grid-cols-7 grid-rows-5 gap-1 sm:gap-2 h-[300px] sm:h-[500px]">
                         {calendarData?.map((cell, index) => {
                           if (!cell.day) return <div key={`empty-${index}`} className="bg-transparent" />;
                           
@@ -596,7 +596,8 @@ export default function ExpenseTracker() {
                     </div>
                   ) : (
                     /* --- YEARLY BAR CHART --- */
-                    <ResponsiveContainer width="100%" height={400}>
+                    <div className="h-[300px] sm:h-[400px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={monthlyChartData}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
@@ -616,6 +617,7 @@ export default function ExpenseTracker() {
                         <Bar dataKey="expense" fill="#f43f5e" name="Expense" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
+                    </div>
                   )}
                 </div>
               </div>
@@ -629,12 +631,12 @@ export default function ExpenseTracker() {
   // --- LIGHT MODE RETURN ---
   return (
     <div className="">
-      <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans text-gray-800 transition-colors duration-300">
+      <div className="min-h-screen bg-gray-50 p-3 sm:p-4 md:p-8 font-sans text-gray-800 transition-colors duration-300">
         <div className="max-w-7xl mx-auto space-y-6">
           
           {/* Header */}
-          <header className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <h1 className="text-3xl font-bold text-indigo-700 flex items-center gap-2">
+          <header className="flex flex-col lg:flex-row justify-between items-center gap-4">
+            <h1 className="text-2xl sm:text-3xl font-bold text-indigo-700 flex items-center gap-2">
               <Wallet className="w-8 h-8" /> Expense Recorder
             </h1>
             
@@ -665,7 +667,7 @@ export default function ExpenseTracker() {
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
+            <div className="flex flex-wrap justify-center sm:justify-end items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-gray-200 w-full sm:w-auto">
               {/* Theme Toggle */}
               <button 
                 onClick={toggleTheme}
@@ -712,7 +714,7 @@ export default function ExpenseTracker() {
           </header>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             <StatCard title="Balance" amount={stats.balance} icon={<Wallet className="text-white w-6 h-6" />} color="bg-indigo-500" />
             <StatCard title="Income" amount={stats.income} icon={<TrendingUp className="text-white w-6 h-6" />} color="bg-emerald-500" />
             <StatCard title="Expense" amount={stats.expense} icon={<TrendingDown className="text-white w-6 h-6" />} color="bg-rose-500" />
@@ -722,7 +724,7 @@ export default function ExpenseTracker() {
             
             {/* Left: Input */}
             <div className="lg:col-span-1 space-y-6">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 transition-colors">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 transition-colors">
                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800">
                   {editingId ? <Edit2 className="w-5 h-5 text-orange-500"/> : <PlusCircle className="w-5 h-5 text-indigo-500"/>}
                   {editingId ? "Edit" : "New"} Transaction
@@ -800,7 +802,7 @@ export default function ExpenseTracker() {
               </div>
 
               {/* Transaction List */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-[400px] transition-colors">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-[350px] sm:h-[400px] transition-colors">
                 <div className="flex justify-between items-center mb-2">
                   <h2 className="text-xl font-semibold flex items-center gap-2 text-gray-800">
                     History
@@ -853,7 +855,7 @@ export default function ExpenseTracker() {
 
             {/* Right: Visualization */}
             <div className="lg:col-span-2">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-full min-h-[500px] transition-colors">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 h-full min-h-[400px] sm:min-h-[500px] transition-colors">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-semibold text-gray-800">{viewMode === 'daily' ? 'Monthly Calendar' : 'Yearly Overview'}</h2>
                 </div>
@@ -867,7 +869,7 @@ export default function ExpenseTracker() {
                       ))}
                     </div>
                     
-                    <div className="grid grid-cols-7 grid-rows-5 gap-2 h-[500px]">
+                    <div className="grid grid-cols-7 grid-rows-5 gap-1 sm:gap-2 h-[300px] sm:h-[500px]">
                       {calendarData?.map((cell, index) => {
                         if (!cell.day) return <div key={`empty-${index}`} className="bg-transparent" />;
                         
@@ -913,7 +915,8 @@ export default function ExpenseTracker() {
                   </div>
                 ) : (
                   /* --- YEARLY BAR CHART --- */
-                  <ResponsiveContainer width="100%" height={400}>
+                  <div className="h-[300px] sm:h-[400px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={monthlyChartData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
@@ -933,6 +936,7 @@ export default function ExpenseTracker() {
                       <Bar dataKey="expense" fill="#f43f5e" name="Expense" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
+                  </div>
                 )}
               </div>
             </div>
