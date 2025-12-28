@@ -44,6 +44,12 @@ interface Transaction {
   category: string;
 }
 
+interface WalletData {
+  id: string;
+  name: string;
+  transactions: Transaction[];
+}
+
 // --- Utility: Currency Formatter ---
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-US", {
@@ -57,7 +63,10 @@ const formatCurrency = (amount: number) => {
 // --- Main Component ---
 export default function ExpenseTracker() {
   // --- State ---
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [wallets, setWallets] = useState<WalletData[]>([]);
+  const [activeWalletId, setActiveWalletId] = useState<string | null>(null);
+  const [isCreatingWallet, setIsCreatingWallet] = useState(false);
+  const [newWalletName, setNewWalletName] = useState("");
   const [isMounted, setIsMounted] = useState(false);
   
   // Theme State
@@ -76,12 +85,41 @@ export default function ExpenseTracker() {
   const [category, setCategory] = useState("General");
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // --- Derived State ---
+  const activeWallet = useMemo(() => wallets.find(w => w.id === activeWalletId), [wallets, activeWalletId]);
+  const transactions = activeWallet ? activeWallet.transactions : [];
+
   // --- Effects ---
   useEffect(() => {
     setIsMounted(true);
     // Load Data
     const savedData = localStorage.getItem("expense-tracker-data");
-    if (savedData) setTransactions(JSON.parse(savedData));
+    let initialWallets: WalletData[] = [];
+
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (Array.isArray(parsed)) {
+          if (parsed.length > 0 && 'transactions' in parsed[0]) {
+            // New format: Array of Wallets
+            initialWallets = parsed;
+          } else {
+            // Old format: Array of Transactions (or empty)
+            // Migrate to default wallet
+            initialWallets = [{ id: crypto.randomUUID(), name: "Main Wallet", transactions: parsed }];
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse data", e);
+      }
+    }
+
+    if (initialWallets.length === 0) {
+      initialWallets = [{ id: crypto.randomUUID(), name: "Main Wallet", transactions: [] }];
+    }
+
+    setWallets(initialWallets);
+    setActiveWalletId(initialWallets[0].id);
 
     // Load Theme
     const savedTheme = localStorage.getItem("theme");
@@ -90,9 +128,9 @@ export default function ExpenseTracker() {
 
   useEffect(() => {
     if (isMounted) {
-      localStorage.setItem("expense-tracker-data", JSON.stringify(transactions));
+      localStorage.setItem("expense-tracker-data", JSON.stringify(wallets));
     }
-  }, [transactions, isMounted]);
+  }, [wallets, isMounted]);
 
   // --- Handlers ---
   const toggleTheme = () => {
@@ -102,9 +140,33 @@ export default function ExpenseTracker() {
     // Removed window.location.reload() to allow React to switch views dynamically
   };
 
+  const handleCreateWallet = () => {
+    if (!newWalletName.trim()) return;
+    const newWallet: WalletData = {
+      id: crypto.randomUUID(),
+      name: newWalletName,
+      transactions: []
+    };
+    setWallets([...wallets, newWallet]);
+    setActiveWalletId(newWallet.id);
+    setNewWalletName("");
+    setIsCreatingWallet(false);
+  };
+
+  const handleDeleteWallet = (walletId: string) => {
+    if (wallets.length <= 1) return alert("You must have at least one wallet.");
+    if (confirm("Delete this wallet and all its records?")) {
+      const updatedWallets = wallets.filter(w => w.id !== walletId);
+      setWallets(updatedWallets);
+      if (activeWalletId === walletId) {
+        setActiveWalletId(updatedWallets[0].id);
+      }
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description || !amount || !date) return;
+    if (!description || !amount || !date || !activeWalletId) return;
 
     const payload: Transaction = {
       id: editingId ? editingId : crypto.randomUUID(),
@@ -115,12 +177,17 @@ export default function ExpenseTracker() {
       category,
     };
 
-    if (editingId) {
-      setTransactions((prev) => prev.map((t) => (t.id === editingId ? payload : t)));
-      setEditingId(null);
-    } else {
-      setTransactions((prev) => [...prev, payload]);
-    }
+    setWallets(prev => prev.map(w => {
+      if (w.id === activeWalletId) {
+        const updatedTransactions = editingId 
+          ? w.transactions.map(t => t.id === editingId ? payload : t)
+          : [...w.transactions, payload];
+        return { ...w, transactions: updatedTransactions };
+      }
+      return w;
+    }));
+
+    if (editingId) setEditingId(null);
 
     setDescription("");
     setAmount("");
@@ -140,7 +207,12 @@ export default function ExpenseTracker() {
 
   const handleDelete = (id: string) => {
     if (confirm("Delete this record?")) {
-      setTransactions((prev) => prev.filter((t) => t.id !== id));
+      setWallets(prev => prev.map(w => {
+        if (w.id === activeWalletId) {
+          return { ...w, transactions: w.transactions.filter(t => t.id !== id) };
+        }
+        return w;
+      }));
     }
   };
 
@@ -249,6 +321,33 @@ export default function ExpenseTracker() {
                 <Wallet className="w-8 h-8" /> Expense Recorder
               </h1>
               
+              {/* Wallet Switcher (Dark) */}
+              <div className="flex items-center gap-2 bg-gray-800/50 p-1.5 rounded-xl border border-gray-700">
+                {isCreatingWallet ? (
+                   <div className="flex items-center gap-2">
+                      <input 
+                         autoFocus
+                         type="text"
+                         placeholder="Wallet Name"
+                         className="bg-transparent border-b border-indigo-500 text-sm text-gray-200 focus:outline-none w-32 px-1"
+                         value={newWalletName}
+                         onChange={(e) => setNewWalletName(e.target.value)}
+                         onKeyDown={(e) => e.key === 'Enter' && handleCreateWallet()}
+                      />
+                      <button onClick={handleCreateWallet} className="text-indigo-400 hover:text-indigo-300"><PlusCircle size={16}/></button>
+                      <button onClick={() => setIsCreatingWallet(false)} className="text-gray-500 hover:text-gray-400"><FilterX size={16}/></button>
+                   </div>
+                ) : (
+                   <div className="flex items-center gap-2">
+                      <select value={activeWalletId || ""} onChange={(e) => setActiveWalletId(e.target.value)} className="bg-transparent text-sm font-medium text-gray-200 focus:outline-none cursor-pointer">
+                         {wallets.map(w => <option key={w.id} value={w.id} className="bg-gray-900">{w.name}</option>)}
+                      </select>
+                      <button onClick={() => setIsCreatingWallet(true)} className="text-gray-400 hover:text-indigo-400 ml-1"><PlusCircle size={16} /></button>
+                      {wallets.length > 1 && <button onClick={() => activeWalletId && handleDeleteWallet(activeWalletId)} className="text-gray-400 hover:text-rose-400 ml-1"><Trash2 size={14} /></button>}
+                   </div>
+                )}
+              </div>
+
               <div className="flex flex-col sm:flex-row items-center gap-3 bg-gray-900 p-2 rounded-xl shadow-sm border border-gray-800">
                 {/* Theme Toggle */}
                 <button 
@@ -539,6 +638,33 @@ export default function ExpenseTracker() {
               <Wallet className="w-8 h-8" /> Expense Recorder
             </h1>
             
+            {/* Wallet Switcher (Light) */}
+            <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm">
+              {isCreatingWallet ? (
+                 <div className="flex items-center gap-2">
+                    <input 
+                       autoFocus
+                       type="text"
+                       placeholder="Wallet Name"
+                       className="bg-transparent border-b border-indigo-500 text-sm text-gray-800 focus:outline-none w-32 px-1"
+                       value={newWalletName}
+                       onChange={(e) => setNewWalletName(e.target.value)}
+                       onKeyDown={(e) => e.key === 'Enter' && handleCreateWallet()}
+                    />
+                    <button onClick={handleCreateWallet} className="text-indigo-600 hover:text-indigo-700"><PlusCircle size={16}/></button>
+                    <button onClick={() => setIsCreatingWallet(false)} className="text-gray-400 hover:text-gray-500"><FilterX size={16}/></button>
+                 </div>
+              ) : (
+                 <div className="flex items-center gap-2">
+                    <select value={activeWalletId || ""} onChange={(e) => setActiveWalletId(e.target.value)} className="bg-transparent text-sm font-medium text-gray-700 focus:outline-none cursor-pointer">
+                       {wallets.map(w => <option key={w.id} value={w.id} className="bg-white">{w.name}</option>)}
+                    </select>
+                    <button onClick={() => setIsCreatingWallet(true)} className="text-gray-400 hover:text-indigo-600 ml-1"><PlusCircle size={16} /></button>
+                    {wallets.length > 1 && <button onClick={() => activeWalletId && handleDeleteWallet(activeWalletId)} className="text-gray-400 hover:text-rose-500 ml-1"><Trash2 size={14} /></button>}
+                 </div>
+              )}
+            </div>
+
             <div className="flex flex-col sm:flex-row items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
               {/* Theme Toggle */}
               <button 
