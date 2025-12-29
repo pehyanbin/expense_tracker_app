@@ -8,18 +8,18 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   BarChart,
   Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
   LineChart,
   Line,
   PieChart,
   Pie,
   Cell,
   Treemap,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
 } from "recharts";
 import {
   Trash2,
@@ -34,21 +34,17 @@ import {
   ChevronRight,
   FilterX,
   Moon,
-  Sun
+  Sun,
+  LineChartIcon,
+  PieChartIcon,
+  CircleDot,
+  LayoutGrid,
 } from "lucide-react";
 
 // --- Types ---
 type TransactionType = "income" | "expense";
-type ViewMode = 
-  | "daily" 
-  | "yearly_bar" 
-  | "yearly_line" 
-  | "monthly_pie" 
-  | "yearly_pie" 
-  | "monthly_donut" 
-  | "yearly_donut" 
-  | "monthly_treemap" 
-  | "yearly_treemap";
+type ViewMode = "daily" | "monthly";
+type ChartType = "bar" | "line" | "pie" | "donut" | "treemap";
 
 interface Transaction {
   id: string;
@@ -65,6 +61,20 @@ interface WalletData {
   transactions: Transaction[];
 }
 
+// --- Constants ---
+const CHART_COLORS = [
+  '#6366f1', // indigo
+  '#10b981', // emerald
+  '#f43f5e', // rose
+  '#f59e0b', // amber
+  '#3b82f6', // blue
+  '#8b5cf6', // violet
+  '#ec4899', // pink
+  '#14b8a6', // teal
+  '#84cc16', // lime
+  '#f97316', // orange
+];
+
 // --- Utility: Currency Formatter ---
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-US", {
@@ -75,8 +85,53 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-// --- Constants ---
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1'];
+// Custom Treemap Content
+const CustomTreemapContent = (props: any) => {
+  const { x, y, width, height, name, value, index, darkMode } = props;
+  
+  if (width < 30 || height < 30) return null;
+  
+  return (
+    <g>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        style={{
+          fill: CHART_COLORS[index % CHART_COLORS.length],
+          stroke: darkMode ? '#1f2937' : '#fff',
+          strokeWidth: 2,
+        }}
+        rx={4}
+      />
+      {width > 50 && height > 40 && (
+        <>
+          <text
+            x={x + width / 2}
+            y={y + height / 2 - 8}
+            textAnchor="middle"
+            fill="#fff"
+            fontSize={12}
+            fontWeight="bold"
+          >
+            {name}
+          </text>
+          <text
+            x={x + width / 2}
+            y={y + height / 2 + 10}
+            textAnchor="middle"
+            fill="#fff"
+            fontSize={11}
+            opacity={0.9}
+          >
+            {formatCurrency(value)}
+          </text>
+        </>
+      )}
+    </g>
+  );
+};
 
 // --- Main Component ---
 export default function ExpenseTracker() {
@@ -94,6 +149,9 @@ export default function ExpenseTracker() {
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  
+  // Chart Type State
+  const [chartType, setChartType] = useState<ChartType>("bar");
 
   // Form State
   const [description, setDescription] = useState("");
@@ -119,11 +177,8 @@ export default function ExpenseTracker() {
         const parsed = JSON.parse(savedData);
         if (Array.isArray(parsed)) {
           if (parsed.length > 0 && 'transactions' in parsed[0]) {
-            // New format: Array of Wallets
             initialWallets = parsed;
           } else {
-            // Old format: Array of Transactions (or empty)
-            // Migrate to default wallet
             initialWallets = [{ id: crypto.randomUUID(), name: "Main Wallet", transactions: parsed }];
           }
         }
@@ -155,7 +210,6 @@ export default function ExpenseTracker() {
     const newTheme = !darkMode;
     setDarkMode(newTheme);
     localStorage.setItem("theme", newTheme ? "dark" : "light");
-    // Removed window.location.reload() to allow React to switch views dynamically
   };
 
   const handleCreateWallet = () => {
@@ -243,7 +297,7 @@ export default function ExpenseTracker() {
 
   const navigateTime = (direction: "prev" | "next") => {
     const newDate = new Date(currentDate);
-    if (viewMode === "daily" || viewMode.startsWith("monthly")) {
+    if (viewMode === "daily") {
       newDate.setMonth(currentDate.getMonth() + (direction === "next" ? 1 : -1));
       setSelectedDay(null);
     } else {
@@ -263,9 +317,7 @@ export default function ExpenseTracker() {
       const tDate = new Date(t.date);
       const isSameYear = tDate.getFullYear() === currentDate.getFullYear();
       const isSameMonth = tDate.getMonth() === currentDate.getMonth();
-      
-      const isMonthlyView = ["daily", "monthly_pie", "monthly_donut", "monthly_treemap"].includes(viewMode);
-      return isMonthlyView ? (isSameYear && isSameMonth) : isSameYear;
+      return viewMode === "daily" ? (isSameYear && isSameMonth) : isSameYear;
     });
   }, [transactions, currentDate, viewMode]);
 
@@ -286,8 +338,9 @@ export default function ExpenseTracker() {
     return { income, expense, balance: income - expense };
   }, [filteredTransactions]);
 
+  // Bar/Line Chart Data (Monthly breakdown for yearly view)
   const monthlyChartData = useMemo(() => {
-    if (!["yearly_bar", "yearly_line"].includes(viewMode)) return [];
+    if (viewMode === "daily") return [];
     const dataMap: Record<number, { name: string; income: number; expense: number }> = {};
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     months.forEach((m, index) => { dataMap[index] = { name: m, income: 0, expense: 0 }; });
@@ -301,20 +354,27 @@ export default function ExpenseTracker() {
     return Object.values(dataMap);
   }, [filteredTransactions, viewMode]);
 
-  const categoryData = useMemo(() => {
-    const data: Record<string, number> = {};
-    filteredTransactions.forEach((t) => {
-      if (t.type === "expense") {
-        data[t.category] = (data[t.category] || 0) + t.amount;
-      }
-    });
-    return Object.entries(data)
+  // Category Chart Data (for Pie, Donut, Treemap)
+  const categoryChartData = useMemo(() => {
+    const categoryMap: Record<string, number> = {};
+    
+    filteredTransactions
+      .filter(t => t.type === "expense")
+      .forEach(t => {
+        if (!categoryMap[t.category]) {
+          categoryMap[t.category] = 0;
+        }
+        categoryMap[t.category] += t.amount;
+      });
+    
+    return Object.entries(categoryMap)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
   }, [filteredTransactions]);
 
+  // Calendar Data
   const calendarData = useMemo(() => {
-    if (viewMode !== "daily") return null;
+    if (viewMode === "monthly") return null;
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -330,15 +390,285 @@ export default function ExpenseTracker() {
     return days;
   }, [filteredTransactions, currentDate, viewMode]);
 
-  const timeLabel = (viewMode === "daily" || viewMode.startsWith("monthly"))
+  const timeLabel = viewMode === "daily" 
     ? currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" }) 
     : currentDate.getFullYear().toString();
 
   if (!isMounted) return null;
 
-  // ------------------------------------------------------------------
-  //  SOLUTION: Conditional Return (Split Views)
-  // ------------------------------------------------------------------
+  // Chart Type Options
+  const chartTypeOptions: { value: ChartType; label: string; icon: React.ReactNode }[] = [
+    { value: "bar", label: "Bar", icon: <BarChart3 className="w-4 h-4" /> },
+    { value: "line", label: "Line", icon: <LineChartIcon className="w-4 h-4" /> },
+    { value: "pie", label: "Pie", icon: <PieChartIcon className="w-4 h-4" /> },
+    { value: "donut", label: "Donut", icon: <CircleDot className="w-4 h-4" /> },
+    { value: "treemap", label: "Treemap", icon: <LayoutGrid className="w-4 h-4" /> },
+  ];
+
+  // Custom Tooltip for Pie/Donut
+  const CustomPieTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0];
+      return (
+        <div className={`px-3 py-2 rounded-lg shadow-lg ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
+          <p className="font-medium">{data.name}</p>
+          <p className="text-sm">{formatCurrency(data.value)}</p>
+          <p className="text-xs opacity-70">{((data.value / stats.expense) * 100).toFixed(1)}%</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Render Chart based on type
+  const renderChart = () => {
+    const isDark = darkMode;
+    
+    if (viewMode === "daily") {
+      // Calendar View for daily mode
+      return (
+        <div className="h-full">
+          <div className="grid grid-cols-7 mb-2">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+              <div key={day} className={`text-center text-xs font-bold uppercase ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{day}</div>
+            ))}
+          </div>
+          
+          <div className="grid grid-cols-7 grid-rows-5 gap-1 sm:gap-2 h-[300px] sm:h-[500px]">
+            {calendarData?.map((cell, index) => {
+              if (!cell.day) return <div key={`empty-${index}`} className="bg-transparent" />;
+              
+              const isToday = 
+                new Date().getDate() === cell.day && 
+                new Date().getMonth() === currentDate.getMonth() && 
+                new Date().getFullYear() === currentDate.getFullYear();
+              
+              const isSelected = selectedDay === cell.day;
+
+              return (
+                <button 
+                  key={`day-${cell.day}`} 
+                  onClick={() => cell.day && handleDayClick(cell.day)}
+                  className={`
+                    border rounded-xl p-2 relative flex flex-col justify-between transition-all text-left
+                    ${isSelected 
+                        ? isDark 
+                          ? 'border-indigo-500 ring-2 ring-indigo-900 bg-indigo-900/20 z-10'
+                          : 'border-indigo-600 ring-2 ring-indigo-200 bg-indigo-50 z-10'
+                        : isDark 
+                          ? 'border-gray-800 hover:border-gray-600 bg-gray-900'
+                          : 'border-gray-100 hover:border-indigo-300 bg-white'
+                    }
+                  `}
+                >
+                  <span className={`text-sm font-semibold ${isToday ? 'text-indigo-600' : isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {cell.day}
+                  </span>
+                  
+                  <div className="space-y-1 w-full">
+                    {cell.income > 0 && (
+                      <div className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium truncate ${isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-100 text-emerald-700'}`}>
+                        +{formatCurrency(cell.income)}
+                      </div>
+                    )}
+                    {cell.expense > 0 && (
+                      <div className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium truncate ${isDark ? 'bg-rose-900/30 text-rose-400' : 'bg-rose-100 text-rose-700'}`}>
+                        -{formatCurrency(cell.expense)}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // Chart views for monthly (yearly) mode
+    switch (chartType) {
+      case "bar":
+        return (
+          <div className="h-[300px] sm:h-[400px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyChartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#374151' : '#f3f4f6'} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
+                <Tooltip 
+                  contentStyle={{
+                    borderRadius: '8px', 
+                    border: 'none', 
+                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                    backgroundColor: isDark ? '#1f2937' : '#fff',
+                    color: isDark ? '#fff' : '#000'
+                  }}
+                  formatter={(value: any) => formatCurrency(value)}
+                />
+                <Legend />
+                <Bar dataKey="income" fill="#10b981" name="Income" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expense" fill="#f43f5e" name="Expense" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        );
+
+      case "line":
+        return (
+          <div className="h-[300px] sm:h-[400px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={monthlyChartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#374151' : '#f3f4f6'} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
+                <Tooltip 
+                  contentStyle={{
+                    borderRadius: '8px', 
+                    border: 'none', 
+                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                    backgroundColor: isDark ? '#1f2937' : '#fff',
+                    color: isDark ? '#fff' : '#000'
+                  }}
+                  formatter={(value: any) => formatCurrency(value)}
+                />
+                <Legend />
+                <Line 
+                  type="monotone" 
+                  dataKey="income" 
+                  stroke="#10b981" 
+                  strokeWidth={3}
+                  dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+                  activeDot={{ r: 6, strokeWidth: 2 }}
+                  name="Income"
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="expense" 
+                  stroke="#f43f5e" 
+                  strokeWidth={3}
+                  dot={{ fill: '#f43f5e', strokeWidth: 2, r: 4 }}
+                  activeDot={{ r: 6, strokeWidth: 2 }}
+                  name="Expense"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        );
+
+      case "pie":
+        return (
+          <div className="h-[300px] sm:h-[400px] w-full">
+            {categoryChartData.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <p className={isDark ? 'text-gray-500' : 'text-gray-400'}>No expense data for this period</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryChartData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius="80%"
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {categoryChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomPieTooltip />} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        );
+
+      case "donut":
+        return (
+          <div className="h-[300px] sm:h-[400px] w-full">
+            {categoryChartData.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <p className={isDark ? 'text-gray-500' : 'text-gray-400'}>No expense data for this period</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryChartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="50%"
+                    outerRadius="80%"
+                    fill="#8884d8"
+                    paddingAngle={2}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    labelLine={false}
+                  >
+                    {categoryChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomPieTooltip />} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+            {categoryChartData.length > 0 && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="text-center">
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Total</p>
+                  <p className={`text-xl font-bold ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{formatCurrency(stats.expense)}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case "treemap":
+        return (
+          <div className="h-[300px] sm:h-[400px] w-full">
+            {categoryChartData.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <p className={isDark ? 'text-gray-500' : 'text-gray-400'}>No expense data for this period</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <Treemap
+                  data={categoryChartData}
+                  dataKey="value"
+                  aspectRatio={4 / 3}
+                  stroke={isDark ? '#1f2937' : '#fff'}
+                  content={<CustomTreemapContent darkMode={isDark} />}
+                >
+                  <Tooltip 
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className={`px-3 py-2 rounded-lg shadow-lg ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
+                            <p className="font-medium">{data.name}</p>
+                            <p className="text-sm">{formatCurrency(data.value)}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                </Treemap>
+              </ResponsiveContainer>
+            )}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   // --- DARK MODE RETURN ---
   if (darkMode) {
@@ -391,29 +721,26 @@ export default function ExpenseTracker() {
 
                 {/* View Toggle */}
                 <div className="flex bg-gray-800 rounded-lg p-1">
-                  <select 
-                    value={viewMode} 
-                    onChange={(e) => { setViewMode(e.target.value as ViewMode); setSelectedDay(null); }}
-                    className="bg-gray-700 text-indigo-300 text-sm font-medium rounded-md px-3 py-1.5 focus:outline-none cursor-pointer border-none"
+                  <button
+                    onClick={() => { setViewMode("daily"); setSelectedDay(null); }}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${
+                      viewMode === "daily" 
+                        ? "bg-gray-700 text-indigo-300 shadow-sm" 
+                        : "text-gray-400 hover:text-gray-200"
+                    }`}
                   >
-                    <optgroup label="Calendar">
-                      <option value="daily">Calendar View</option>
-                    </optgroup>
-                    <optgroup label="Yearly Overview">
-                      <option value="yearly_bar">Yearly Bar Chart</option>
-                      <option value="yearly_line">Yearly Line Chart</option>
-                    </optgroup>
-                    <optgroup label="Expenses (Monthly)">
-                      <option value="monthly_pie">Monthly Pie</option>
-                      <option value="monthly_donut">Monthly Donut</option>
-                      <option value="monthly_treemap">Monthly Treemap</option>
-                    </optgroup>
-                    <optgroup label="Expenses (Yearly)">
-                      <option value="yearly_pie">Yearly Pie</option>
-                      <option value="yearly_donut">Yearly Donut</option>
-                      <option value="yearly_treemap">Yearly Treemap</option>
-                    </optgroup>
-                  </select>
+                    <CalendarIcon className="w-4 h-4" /> Calendar
+                  </button>
+                  <button
+                    onClick={() => { setViewMode("monthly"); setSelectedDay(null); }}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${
+                      viewMode === "monthly" 
+                        ? "bg-gray-700 text-indigo-300 shadow-sm" 
+                        : "text-gray-400 hover:text-gray-200"
+                    }`}
+                  >
+                    <BarChart3 className="w-4 h-4" /> Yearly
+                  </button>
                 </div>
 
                 {/* Navigation */}
@@ -550,7 +877,7 @@ export default function ExpenseTracker() {
                             <div className={`w-2 h-8 rounded-full ${t.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
                             <div>
                               <p className="font-medium text-gray-200">{t.description}</p>
-                              <p className="text-xs text-gray-400">{t.date}</p>
+                              <p className="text-xs text-gray-400">{t.date} • {t.category}</p>
                             </div>
                           </div>
                           <div className="flex flex-col items-end">
@@ -571,217 +898,35 @@ export default function ExpenseTracker() {
 
               {/* Right: Visualization */}
               <div className="lg:col-span-2">
-                <div className="bg-gray-900 p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-800 h-full min-h-[400px] sm:min-h-[500px] transition-colors">
-                  <div className="flex justify-between items-center mb-6">
+                <div className="bg-gray-900 p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-800 h-full min-h-[400px] sm:min-h-[500px] transition-colors relative">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                     <h2 className="text-xl font-semibold text-gray-100">
-                      {viewMode === 'daily' ? 'Monthly Calendar' : 'Visualization'}
+                      {viewMode === 'daily' ? 'Monthly Calendar' : 'Yearly Overview'}
                     </h2>
-                  </div>
-
-                  {viewMode === "daily" && (
-                    /* --- CALENDAR VIEW --- */
-                    <div className="h-full">
-                      <div className="grid grid-cols-7 mb-2">
-                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                          <div key={day} className="text-center text-xs font-bold text-gray-500 uppercase">{day}</div>
+                    
+                    {/* Chart Type Selector - Only show in yearly view */}
+                    {viewMode === "monthly" && (
+                      <div className="flex items-center gap-1 bg-gray-800 p-1 rounded-lg">
+                        {chartTypeOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => setChartType(option.value)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                              chartType === option.value
+                                ? 'bg-gray-700 text-indigo-300 shadow-sm'
+                                : 'text-gray-400 hover:text-gray-200'
+                            }`}
+                            title={option.label}
+                          >
+                            {option.icon}
+                            <span className="hidden sm:inline">{option.label}</span>
+                          </button>
                         ))}
                       </div>
-                      
-                      <div className="grid grid-cols-7 grid-rows-5 gap-1 sm:gap-2 h-[300px] sm:h-[500px]">
-                        {calendarData?.map((cell, index) => {
-                          if (!cell.day) return <div key={`empty-${index}`} className="bg-transparent" />;
-                          
-                          const isToday = 
-                            new Date().getDate() === cell.day && 
-                            new Date().getMonth() === currentDate.getMonth() && 
-                            new Date().getFullYear() === currentDate.getFullYear();
-                          
-                          const isSelected = selectedDay === cell.day;
+                    )}
+                  </div>
 
-                          return (
-                            <button 
-                              key={`day-${cell.day}`} 
-                              onClick={() => cell.day && handleDayClick(cell.day)}
-                              className={`
-                                border rounded-xl p-2 relative flex flex-col justify-between transition-all text-left
-                                ${isSelected 
-                                    ? 'border-indigo-500 ring-2 ring-indigo-900 bg-indigo-900/20 z-10' 
-                                    : 'border-gray-800 hover:border-gray-600 bg-gray-900'
-                                }
-                              `}
-                            >
-                              <span className={`text-sm font-semibold ${isToday ? 'text-indigo-400' : 'text-gray-400'}`}>
-                                {cell.day}
-                              </span>
-                              
-                              <div className="space-y-1 w-full">
-                                {cell.income > 0 && (
-                                  <div className="text-[10px] bg-emerald-900/30 text-emerald-400 px-1.5 py-0.5 rounded-md font-medium truncate">
-                                    +{formatCurrency(cell.income)}
-                                  </div>
-                                )}
-                                {cell.expense > 0 && (
-                                  <div className="text-[10px] bg-rose-900/30 text-rose-400 px-1.5 py-0.5 rounded-md font-medium truncate">
-                                    -{formatCurrency(cell.expense)}
-                                  </div>
-                                )}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {viewMode === "yearly_bar" && (
-                    /* --- YEARLY BAR CHART --- */
-                    <div className="h-[300px] sm:h-[400px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={monthlyChartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
-                        <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
-                        <Tooltip 
-                          contentStyle={{
-                              borderRadius: '8px', 
-                              border: 'none', 
-                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                              backgroundColor: '#1f2937',
-                              color: '#fff'
-                          }}
-                          formatter={(value: any) => formatCurrency(value)}
-                        />
-                        <Legend />
-                        <Bar dataKey="income" fill="#10b981" name="Income" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="expense" fill="#f43f5e" name="Expense" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                    </div>
-                  )}
-
-                  {viewMode === "yearly_line" && (
-                    /* --- YEARLY LINE CHART --- */
-                    <div className="h-[300px] sm:h-[400px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={monthlyChartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
-                        <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
-                        <Tooltip 
-                          contentStyle={{
-                              borderRadius: '8px', 
-                              border: 'none', 
-                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                              backgroundColor: '#1f2937',
-                              color: '#fff'
-                          }}
-                          formatter={(value: any) => formatCurrency(value)}
-                        />
-                        <Legend />
-                        <Line type="monotone" dataKey="income" stroke="#10b981" name="Income" strokeWidth={2} />
-                        <Line type="monotone" dataKey="expense" stroke="#f43f5e" name="Expense" strokeWidth={2} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                    </div>
-                  )}
-
-                  {(viewMode === "monthly_pie" || viewMode === "yearly_pie") && (
-                    /* --- PIE CHART --- */
-                    <div className="h-[300px] sm:h-[400px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={categoryData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                          outerRadius={120}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {categoryData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          contentStyle={{
-                              borderRadius: '8px', 
-                              border: 'none', 
-                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                              backgroundColor: '#bbc5d1ff',
-                              color: '#fff'
-                          }}
-                          formatter={(value: any) => formatCurrency(value)}
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    </div>
-                  )}
-
-                  {(viewMode === "monthly_donut" || viewMode === "yearly_donut") && (
-                    /* --- DONUT CHART --- */
-                    <div className="h-[300px] sm:h-[400px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={categoryData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                          innerRadius={60}
-                          outerRadius={120}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {categoryData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          contentStyle={{
-                              borderRadius: '8px', 
-                              border: 'none', 
-                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                              backgroundColor: '#bbc5d1ff',
-                              color: '#fff'
-                          }}
-                          formatter={(value: any) => formatCurrency(value)}
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    </div>
-                  )}
-
-                  {(viewMode === "monthly_treemap" || viewMode === "yearly_treemap") && (
-                    /* --- TREEMAP --- */
-                    <div className="h-[300px] sm:h-[400px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <Treemap
-                        data={categoryData}
-                        dataKey="value"
-                        aspectRatio={4 / 3}
-                        stroke="#1f2937"
-                        fill="#8884d8"
-                        content={<CustomizedTreemapContent />}
-                      >
-                        <Tooltip 
-                          contentStyle={{
-                              borderRadius: '8px', 
-                              border: 'none', 
-                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                              backgroundColor: '#1f2937',
-                              color: '#fff'
-                          }}
-                          formatter={(value: any) => formatCurrency(value)}
-                        />
-                      </Treemap>
-                    </ResponsiveContainer>
-                    </div>
-                  )}
+                  {renderChart()}
                 </div>
               </div>
             </div>
@@ -841,29 +986,26 @@ export default function ExpenseTracker() {
 
               {/* View Toggle */}
               <div className="flex bg-gray-100 rounded-lg p-1">
-                <select 
-                  value={viewMode} 
-                  onChange={(e) => { setViewMode(e.target.value as ViewMode); setSelectedDay(null); }}
-                  className="bg-white text-indigo-700 text-sm font-medium rounded-md px-3 py-1.5 focus:outline-none cursor-pointer border-none shadow-sm"
+                <button
+                  onClick={() => { setViewMode("daily"); setSelectedDay(null); }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${
+                    viewMode === "daily" 
+                      ? "bg-white text-indigo-700 shadow-sm" 
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
                 >
-                  <optgroup label="Calendar">
-                    <option value="daily">Calendar View</option>
-                  </optgroup>
-                  <optgroup label="Yearly Overview">
-                    <option value="yearly_bar">Yearly Bar Chart</option>
-                    <option value="yearly_line">Yearly Line Chart</option>
-                  </optgroup>
-                  <optgroup label="Expenses (Monthly)">
-                    <option value="monthly_pie">Monthly Pie</option>
-                    <option value="monthly_donut">Monthly Donut</option>
-                    <option value="monthly_treemap">Monthly Treemap</option>
-                  </optgroup>
-                  <optgroup label="Expenses (Yearly)">
-                    <option value="yearly_pie">Yearly Pie</option>
-                    <option value="yearly_donut">Yearly Donut</option>
-                    <option value="yearly_treemap">Yearly Treemap</option>
-                  </optgroup>
-                </select>
+                  <CalendarIcon className="w-4 h-4" /> Calendar
+                </button>
+                <button
+                  onClick={() => { setViewMode("monthly"); setSelectedDay(null); }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${
+                    viewMode === "monthly" 
+                      ? "bg-white text-indigo-700 shadow-sm" 
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4" /> Yearly
+                </button>
               </div>
 
               {/* Navigation */}
@@ -1000,7 +1142,7 @@ export default function ExpenseTracker() {
                           <div className={`w-2 h-8 rounded-full ${t.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
                           <div>
                             <p className="font-medium text-gray-800">{t.description}</p>
-                            <p className="text-xs text-gray-500">{t.date}</p>
+                            <p className="text-xs text-gray-500">{t.date} • {t.category}</p>
                           </div>
                         </div>
                         <div className="flex flex-col items-end">
@@ -1021,217 +1163,35 @@ export default function ExpenseTracker() {
 
             {/* Right: Visualization */}
             <div className="lg:col-span-2">
-              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 h-full min-h-[400px] sm:min-h-[500px] transition-colors">
-                <div className="flex justify-between items-center mb-6">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 h-full min-h-[400px] sm:min-h-[500px] transition-colors relative">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                   <h2 className="text-xl font-semibold text-gray-800">
-                    {viewMode === 'daily' ? 'Monthly Calendar' : 'Visualization'}
+                    {viewMode === 'daily' ? 'Monthly Calendar' : 'Yearly Overview'}
                   </h2>
-                </div>
-
-                {viewMode === "daily" && (
-                  /* --- CALENDAR VIEW --- */
-                  <div className="h-full">
-                    <div className="grid grid-cols-7 mb-2">
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                        <div key={day} className="text-center text-xs font-bold text-gray-400 uppercase">{day}</div>
+                  
+                  {/* Chart Type Selector - Only show in yearly view */}
+                  {viewMode === "monthly" && (
+                    <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+                      {chartTypeOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => setChartType(option.value)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                            chartType === option.value
+                              ? 'bg-white text-indigo-700 shadow-sm'
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                          title={option.label}
+                        >
+                          {option.icon}
+                          <span className="hidden sm:inline">{option.label}</span>
+                        </button>
                       ))}
                     </div>
-                    
-                    <div className="grid grid-cols-7 grid-rows-5 gap-1 sm:gap-2 h-[300px] sm:h-[500px]">
-                      {calendarData?.map((cell, index) => {
-                        if (!cell.day) return <div key={`empty-${index}`} className="bg-transparent" />;
-                        
-                        const isToday = 
-                          new Date().getDate() === cell.day && 
-                          new Date().getMonth() === currentDate.getMonth() && 
-                          new Date().getFullYear() === currentDate.getFullYear();
-                        
-                        const isSelected = selectedDay === cell.day;
+                  )}
+                </div>
 
-                        return (
-                          <button 
-                            key={`day-${cell.day}`} 
-                            onClick={() => cell.day && handleDayClick(cell.day)}
-                            className={`
-                              border rounded-xl p-2 relative flex flex-col justify-between transition-all text-left
-                              ${isSelected 
-                                  ? 'border-indigo-600 ring-2 ring-indigo-200 bg-indigo-50 z-10' 
-                                  : 'border-gray-100 hover:border-indigo-300 bg-white'
-                              }
-                            `}
-                          >
-                            <span className={`text-sm font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>
-                              {cell.day}
-                            </span>
-                            
-                            <div className="space-y-1 w-full">
-                              {cell.income > 0 && (
-                                <div className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md font-medium truncate">
-                                  +{formatCurrency(cell.income)}
-                                </div>
-                              )}
-                              {cell.expense > 0 && (
-                                <div className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-md font-medium truncate">
-                                  -{formatCurrency(cell.expense)}
-                                </div>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {viewMode === "yearly_bar" && (
-                  /* --- YEARLY BAR CHART --- */
-                  <div className="h-[300px] sm:h-[400px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={monthlyChartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
-                      <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
-                      <Tooltip 
-                        contentStyle={{
-                            borderRadius: '8px', 
-                            border: 'none', 
-                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                            backgroundColor: '#fff',
-                            color: '#000'
-                        }}
-                        formatter={(value: any) => formatCurrency(value)}
-                      />
-                      <Legend />
-                      <Bar dataKey="income" fill="#10b981" name="Income" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="expense" fill="#f43f5e" name="Expense" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                  </div>
-                )}
-
-                {viewMode === "yearly_line" && (
-                  /* --- YEARLY LINE CHART --- */
-                  <div className="h-[300px] sm:h-[400px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={monthlyChartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
-                      <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
-                      <Tooltip 
-                        contentStyle={{
-                            borderRadius: '8px', 
-                            border: 'none', 
-                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                            backgroundColor: '#fff',
-                            color: '#000'
-                        }}
-                        formatter={(value: any) => formatCurrency(value)}
-                      />
-                      <Legend />
-                      <Line type="monotone" dataKey="income" stroke="#10b981" name="Income" strokeWidth={2} />
-                      <Line type="monotone" dataKey="expense" stroke="#f43f5e" name="Expense" strokeWidth={2} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                  </div>
-                )}
-
-                {(viewMode === "monthly_pie" || viewMode === "yearly_pie") && (
-                  /* --- PIE CHART --- */
-                  <div className="h-[300px] sm:h-[400px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={categoryData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                        outerRadius={120}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {categoryData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{
-                            borderRadius: '8px', 
-                            border: 'none', 
-                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                            backgroundColor: '#fff',
-                            color: '#000'
-                        }}
-                        formatter={(value: any) => formatCurrency(value)}
-                      />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  </div>
-                )}
-
-                {(viewMode === "monthly_donut" || viewMode === "yearly_donut") && (
-                  /* --- DONUT CHART --- */
-                  <div className="h-[300px] sm:h-[400px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={categoryData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                        innerRadius={60}
-                        outerRadius={120}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {categoryData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{
-                            borderRadius: '8px', 
-                            border: 'none', 
-                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                            backgroundColor: '#fff',
-                            color: '#000'
-                        }}
-                        formatter={(value: any) => formatCurrency(value)}
-                      />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  </div>
-                )}
-
-                {(viewMode === "monthly_treemap" || viewMode === "yearly_treemap") && (
-                  /* --- TREEMAP --- */
-                  <div className="h-[300px] sm:h-[400px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <Treemap
-                      data={categoryData}
-                      dataKey="value"
-                      aspectRatio={4 / 3}
-                      stroke="#fff"
-                      fill="#8884d8"
-                      content={<CustomizedTreemapContent />}
-                    >
-                      <Tooltip 
-                        contentStyle={{
-                            borderRadius: '8px', 
-                            border: 'none', 
-                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                            backgroundColor: '#fff',
-                            color: '#000'
-                        }}
-                        formatter={(value: any) => formatCurrency(value)}
-                      />
-                    </Treemap>
-                  </ResponsiveContainer>
-                  </div>
-                )}
+                {renderChart()}
               </div>
             </div>
           </div>
@@ -1253,37 +1213,3 @@ function StatCard({ title, amount, icon, color }: { title: string; amount: numbe
     </div>
   );
 }
-
-// --- Subcomponent: Treemap Content ---
-const CustomizedTreemapContent = (props: any) => {
-  const { x, y, width, height, index, name } = props;
-  return (
-    <g>
-      <rect
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        style={{
-          fill: COLORS[index % COLORS.length],
-          stroke: '#fff',
-          strokeWidth: 2,
-          strokeOpacity: 1,
-        }}
-      />
-      {width > 50 && height > 30 && (
-        <text
-          x={x + width / 2}
-          y={y + height / 2 + 7}
-          textAnchor="middle"
-          fill="#fff"
-          fontSize={12}
-          fontWeight="bold"
-          style={{ pointerEvents: 'none' }}
-        >
-          {name}
-        </text>
-      )}
-    </g>
-  );
-};
