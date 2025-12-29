@@ -14,6 +14,12 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  Treemap,
 } from "recharts";
 import {
   Trash2,
@@ -33,7 +39,16 @@ import {
 
 // --- Types ---
 type TransactionType = "income" | "expense";
-type ViewMode = "daily" | "monthly";
+type ViewMode = 
+  | "daily" 
+  | "yearly_bar" 
+  | "yearly_line" 
+  | "monthly_pie" 
+  | "yearly_pie" 
+  | "monthly_donut" 
+  | "yearly_donut" 
+  | "monthly_treemap" 
+  | "yearly_treemap";
 
 interface Transaction {
   id: string;
@@ -59,6 +74,9 @@ const formatCurrency = (amount: number) => {
     maximumFractionDigits: 0,
   }).format(amount);
 };
+
+// --- Constants ---
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1'];
 
 // --- Main Component ---
 export default function ExpenseTracker() {
@@ -225,7 +243,7 @@ export default function ExpenseTracker() {
 
   const navigateTime = (direction: "prev" | "next") => {
     const newDate = new Date(currentDate);
-    if (viewMode === "daily") {
+    if (viewMode === "daily" || viewMode.startsWith("monthly")) {
       newDate.setMonth(currentDate.getMonth() + (direction === "next" ? 1 : -1));
       setSelectedDay(null);
     } else {
@@ -245,7 +263,9 @@ export default function ExpenseTracker() {
       const tDate = new Date(t.date);
       const isSameYear = tDate.getFullYear() === currentDate.getFullYear();
       const isSameMonth = tDate.getMonth() === currentDate.getMonth();
-      return viewMode === "daily" ? (isSameYear && isSameMonth) : isSameYear;
+      
+      const isMonthlyView = ["daily", "monthly_pie", "monthly_donut", "monthly_treemap"].includes(viewMode);
+      return isMonthlyView ? (isSameYear && isSameMonth) : isSameYear;
     });
   }, [transactions, currentDate, viewMode]);
 
@@ -267,7 +287,7 @@ export default function ExpenseTracker() {
   }, [filteredTransactions]);
 
   const monthlyChartData = useMemo(() => {
-    if (viewMode === "daily") return [];
+    if (!["yearly_bar", "yearly_line"].includes(viewMode)) return [];
     const dataMap: Record<number, { name: string; income: number; expense: number }> = {};
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     months.forEach((m, index) => { dataMap[index] = { name: m, income: 0, expense: 0 }; });
@@ -281,8 +301,20 @@ export default function ExpenseTracker() {
     return Object.values(dataMap);
   }, [filteredTransactions, viewMode]);
 
+  const categoryData = useMemo(() => {
+    const data: Record<string, number> = {};
+    filteredTransactions.forEach((t) => {
+      if (t.type === "expense") {
+        data[t.category] = (data[t.category] || 0) + t.amount;
+      }
+    });
+    return Object.entries(data)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [filteredTransactions]);
+
   const calendarData = useMemo(() => {
-    if (viewMode === "monthly") return null;
+    if (viewMode !== "daily") return null;
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -298,7 +330,7 @@ export default function ExpenseTracker() {
     return days;
   }, [filteredTransactions, currentDate, viewMode]);
 
-  const timeLabel = viewMode === "daily" 
+  const timeLabel = (viewMode === "daily" || viewMode.startsWith("monthly"))
     ? currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" }) 
     : currentDate.getFullYear().toString();
 
@@ -359,26 +391,29 @@ export default function ExpenseTracker() {
 
                 {/* View Toggle */}
                 <div className="flex bg-gray-800 rounded-lg p-1">
-                  <button
-                    onClick={() => { setViewMode("daily"); setSelectedDay(null); }}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${
-                      viewMode === "daily" 
-                        ? "bg-gray-700 text-indigo-300 shadow-sm" 
-                        : "text-gray-400 hover:text-gray-200"
-                    }`}
+                  <select 
+                    value={viewMode} 
+                    onChange={(e) => { setViewMode(e.target.value as ViewMode); setSelectedDay(null); }}
+                    className="bg-gray-700 text-indigo-300 text-sm font-medium rounded-md px-3 py-1.5 focus:outline-none cursor-pointer border-none"
                   >
-                    <CalendarIcon className="w-4 h-4" /> Calendar
-                  </button>
-                  <button
-                    onClick={() => { setViewMode("monthly"); setSelectedDay(null); }}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${
-                      viewMode === "monthly" 
-                        ? "bg-gray-700 text-indigo-300 shadow-sm" 
-                        : "text-gray-400 hover:text-gray-200"
-                    }`}
-                  >
-                    <BarChart3 className="w-4 h-4" /> Yearly
-                  </button>
+                    <optgroup label="Calendar">
+                      <option value="daily">Calendar View</option>
+                    </optgroup>
+                    <optgroup label="Yearly Overview">
+                      <option value="yearly_bar">Yearly Bar Chart</option>
+                      <option value="yearly_line">Yearly Line Chart</option>
+                    </optgroup>
+                    <optgroup label="Expenses (Monthly)">
+                      <option value="monthly_pie">Monthly Pie</option>
+                      <option value="monthly_donut">Monthly Donut</option>
+                      <option value="monthly_treemap">Monthly Treemap</option>
+                    </optgroup>
+                    <optgroup label="Expenses (Yearly)">
+                      <option value="yearly_pie">Yearly Pie</option>
+                      <option value="yearly_donut">Yearly Donut</option>
+                      <option value="yearly_treemap">Yearly Treemap</option>
+                    </optgroup>
+                  </select>
                 </div>
 
                 {/* Navigation */}
@@ -538,10 +573,12 @@ export default function ExpenseTracker() {
               <div className="lg:col-span-2">
                 <div className="bg-gray-900 p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-800 h-full min-h-[400px] sm:min-h-[500px] transition-colors">
                   <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-semibold text-gray-100">{viewMode === 'daily' ? 'Monthly Calendar' : 'Yearly Overview'}</h2>
+                    <h2 className="text-xl font-semibold text-gray-100">
+                      {viewMode === 'daily' ? 'Monthly Calendar' : 'Visualization'}
+                    </h2>
                   </div>
 
-                  {viewMode === "daily" ? (
+                  {viewMode === "daily" && (
                     /* --- CALENDAR VIEW --- */
                     <div className="h-full">
                       <div className="grid grid-cols-7 mb-2">
@@ -594,7 +631,9 @@ export default function ExpenseTracker() {
                         })}
                       </div>
                     </div>
-                  ) : (
+                  )}
+
+                  {viewMode === "yearly_bar" && (
                     /* --- YEARLY BAR CHART --- */
                     <div className="h-[300px] sm:h-[400px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
@@ -616,6 +655,130 @@ export default function ExpenseTracker() {
                         <Bar dataKey="income" fill="#10b981" name="Income" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="expense" fill="#f43f5e" name="Expense" radius={[4, 4, 0, 0]} />
                       </BarChart>
+                    </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  {viewMode === "yearly_line" && (
+                    /* --- YEARLY LINE CHART --- */
+                    <div className="h-[300px] sm:h-[400px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={monthlyChartData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
+                        <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
+                        <Tooltip 
+                          contentStyle={{
+                              borderRadius: '8px', 
+                              border: 'none', 
+                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                              backgroundColor: '#1f2937',
+                              color: '#fff'
+                          }}
+                          formatter={(value: any) => formatCurrency(value)}
+                        />
+                        <Legend />
+                        <Line type="monotone" dataKey="income" stroke="#10b981" name="Income" strokeWidth={2} />
+                        <Line type="monotone" dataKey="expense" stroke="#f43f5e" name="Expense" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  {(viewMode === "monthly_pie" || viewMode === "yearly_pie") && (
+                    /* --- PIE CHART --- */
+                    <div className="h-[300px] sm:h-[400px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={categoryData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                          outerRadius={120}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {categoryData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{
+                              borderRadius: '8px', 
+                              border: 'none', 
+                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                              backgroundColor: '#bbc5d1ff',
+                              color: '#fff'
+                          }}
+                          formatter={(value: any) => formatCurrency(value)}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  {(viewMode === "monthly_donut" || viewMode === "yearly_donut") && (
+                    /* --- DONUT CHART --- */
+                    <div className="h-[300px] sm:h-[400px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={categoryData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                          innerRadius={60}
+                          outerRadius={120}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {categoryData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{
+                              borderRadius: '8px', 
+                              border: 'none', 
+                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                              backgroundColor: '#bbc5d1ff',
+                              color: '#fff'
+                          }}
+                          formatter={(value: any) => formatCurrency(value)}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  {(viewMode === "monthly_treemap" || viewMode === "yearly_treemap") && (
+                    /* --- TREEMAP --- */
+                    <div className="h-[300px] sm:h-[400px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <Treemap
+                        data={categoryData}
+                        dataKey="value"
+                        aspectRatio={4 / 3}
+                        stroke="#1f2937"
+                        fill="#8884d8"
+                        content={<CustomizedTreemapContent />}
+                      >
+                        <Tooltip 
+                          contentStyle={{
+                              borderRadius: '8px', 
+                              border: 'none', 
+                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                              backgroundColor: '#1f2937',
+                              color: '#fff'
+                          }}
+                          formatter={(value: any) => formatCurrency(value)}
+                        />
+                      </Treemap>
                     </ResponsiveContainer>
                     </div>
                   )}
@@ -678,26 +841,29 @@ export default function ExpenseTracker() {
 
               {/* View Toggle */}
               <div className="flex bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => { setViewMode("daily"); setSelectedDay(null); }}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${
-                    viewMode === "daily" 
-                      ? "bg-white text-indigo-700 shadow-sm" 
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
+                <select 
+                  value={viewMode} 
+                  onChange={(e) => { setViewMode(e.target.value as ViewMode); setSelectedDay(null); }}
+                  className="bg-white text-indigo-700 text-sm font-medium rounded-md px-3 py-1.5 focus:outline-none cursor-pointer border-none shadow-sm"
                 >
-                  <CalendarIcon className="w-4 h-4" /> Calendar
-                </button>
-                <button
-                  onClick={() => { setViewMode("monthly"); setSelectedDay(null); }}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${
-                    viewMode === "monthly" 
-                      ? "bg-white text-indigo-700 shadow-sm" 
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <BarChart3 className="w-4 h-4" /> Yearly
-                </button>
+                  <optgroup label="Calendar">
+                    <option value="daily">Calendar View</option>
+                  </optgroup>
+                  <optgroup label="Yearly Overview">
+                    <option value="yearly_bar">Yearly Bar Chart</option>
+                    <option value="yearly_line">Yearly Line Chart</option>
+                  </optgroup>
+                  <optgroup label="Expenses (Monthly)">
+                    <option value="monthly_pie">Monthly Pie</option>
+                    <option value="monthly_donut">Monthly Donut</option>
+                    <option value="monthly_treemap">Monthly Treemap</option>
+                  </optgroup>
+                  <optgroup label="Expenses (Yearly)">
+                    <option value="yearly_pie">Yearly Pie</option>
+                    <option value="yearly_donut">Yearly Donut</option>
+                    <option value="yearly_treemap">Yearly Treemap</option>
+                  </optgroup>
+                </select>
               </div>
 
               {/* Navigation */}
@@ -857,10 +1023,12 @@ export default function ExpenseTracker() {
             <div className="lg:col-span-2">
               <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 h-full min-h-[400px] sm:min-h-[500px] transition-colors">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-semibold text-gray-800">{viewMode === 'daily' ? 'Monthly Calendar' : 'Yearly Overview'}</h2>
+                  <h2 className="text-xl font-semibold text-gray-800">
+                    {viewMode === 'daily' ? 'Monthly Calendar' : 'Visualization'}
+                  </h2>
                 </div>
 
-                {viewMode === "daily" ? (
+                {viewMode === "daily" && (
                   /* --- CALENDAR VIEW --- */
                   <div className="h-full">
                     <div className="grid grid-cols-7 mb-2">
@@ -913,7 +1081,9 @@ export default function ExpenseTracker() {
                       })}
                     </div>
                   </div>
-                ) : (
+                )}
+
+                {viewMode === "yearly_bar" && (
                   /* --- YEARLY BAR CHART --- */
                   <div className="h-[300px] sm:h-[400px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -938,6 +1108,130 @@ export default function ExpenseTracker() {
                   </ResponsiveContainer>
                   </div>
                 )}
+
+                {viewMode === "yearly_line" && (
+                  /* --- YEARLY LINE CHART --- */
+                  <div className="h-[300px] sm:h-[400px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={monthlyChartData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
+                      <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af'}} />
+                      <Tooltip 
+                        contentStyle={{
+                            borderRadius: '8px', 
+                            border: 'none', 
+                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                            backgroundColor: '#fff',
+                            color: '#000'
+                        }}
+                        formatter={(value: any) => formatCurrency(value)}
+                      />
+                      <Legend />
+                      <Line type="monotone" dataKey="income" stroke="#10b981" name="Income" strokeWidth={2} />
+                      <Line type="monotone" dataKey="expense" stroke="#f43f5e" name="Expense" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  </div>
+                )}
+
+                {(viewMode === "monthly_pie" || viewMode === "yearly_pie") && (
+                  /* --- PIE CHART --- */
+                  <div className="h-[300px] sm:h-[400px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                        outerRadius={120}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {categoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{
+                            borderRadius: '8px', 
+                            border: 'none', 
+                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                            backgroundColor: '#fff',
+                            color: '#000'
+                        }}
+                        formatter={(value: any) => formatCurrency(value)}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  </div>
+                )}
+
+                {(viewMode === "monthly_donut" || viewMode === "yearly_donut") && (
+                  /* --- DONUT CHART --- */
+                  <div className="h-[300px] sm:h-[400px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                        innerRadius={60}
+                        outerRadius={120}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {categoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{
+                            borderRadius: '8px', 
+                            border: 'none', 
+                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                            backgroundColor: '#fff',
+                            color: '#000'
+                        }}
+                        formatter={(value: any) => formatCurrency(value)}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  </div>
+                )}
+
+                {(viewMode === "monthly_treemap" || viewMode === "yearly_treemap") && (
+                  /* --- TREEMAP --- */
+                  <div className="h-[300px] sm:h-[400px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <Treemap
+                      data={categoryData}
+                      dataKey="value"
+                      aspectRatio={4 / 3}
+                      stroke="#fff"
+                      fill="#8884d8"
+                      content={<CustomizedTreemapContent />}
+                    >
+                      <Tooltip 
+                        contentStyle={{
+                            borderRadius: '8px', 
+                            border: 'none', 
+                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                            backgroundColor: '#fff',
+                            color: '#000'
+                        }}
+                        formatter={(value: any) => formatCurrency(value)}
+                      />
+                    </Treemap>
+                  </ResponsiveContainer>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -949,9 +1243,6 @@ export default function ExpenseTracker() {
 
 // --- Subcomponent: Stat Card ---
 function StatCard({ title, amount, icon, color }: { title: string; amount: number; icon: React.ReactNode; color: string }) {
-  // StatCard uses parent context styles or simple backgrounds, so it works in both modes.
-  // However, we need to ensure the text color adapts or we pass props if needed.
-  // Since we are duplicating returns, the wrapper around StatCard handles the theme context (via Tailwind's 'dark' class).
   return (
     <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-4 transition-colors">
       <div className={`p-4 rounded-xl shadow-lg ${color}`}>{icon}</div>
@@ -962,3 +1253,37 @@ function StatCard({ title, amount, icon, color }: { title: string; amount: numbe
     </div>
   );
 }
+
+// --- Subcomponent: Treemap Content ---
+const CustomizedTreemapContent = (props: any) => {
+  const { x, y, width, height, index, name } = props;
+  return (
+    <g>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        style={{
+          fill: COLORS[index % COLORS.length],
+          stroke: '#fff',
+          strokeWidth: 2,
+          strokeOpacity: 1,
+        }}
+      />
+      {width > 50 && height > 30 && (
+        <text
+          x={x + width / 2}
+          y={y + height / 2 + 7}
+          textAnchor="middle"
+          fill="#fff"
+          fontSize={12}
+          fontWeight="bold"
+          style={{ pointerEvents: 'none' }}
+        >
+          {name}
+        </text>
+      )}
+    </g>
+  );
+};
